@@ -1,4 +1,5 @@
 library(rstan)
+library(plyr)
 library(dplyr)
 library(parallel)
 library(readr)
@@ -12,16 +13,15 @@ library(boot)
 
 # CHANGE THESE PATHS AS NECESSARY TO SUIT YOUR SYSTEM.
 # If the appropriate folders don't exist, the code will throw an error. 
-base_code_dir = '~/fast-threshold-test/' # the root directory for code. 
-base_input_dir = '/share/data/policing-data/mixture_model/input/' # the path where input data for the Stan models is stored. 
-base_output_dir = '/share/data/policing-data/mixture_model/output/' # the path where fitted Stan models are stored.
-stop_and_frisk_data_path = '/share/data/algobias-data/sqf.RData' # the path for the original stop-and-frisk data. 
-stopifnot(file.exists(base_code_dir), 
-          file.exists(base_input_dir), 
-          file.exists(base_output_dir), 
-          file.exists(stop_and_frisk_data_path))
+base_code_dir = '~/fasttt-lapdmod/' # the root directory for code. 
+base_input_dir = '~/fasttt-lapdmod/data/input/' # the path where input data for the Stan models is stored. 
+base_output_dir = '~/fasttt-lapdmod/data/output/' # the path where fitted Stan models are stored.
+# stop_and_frisk_data_path = '~/share/data/algobias-data/sqf.RData' # the path for the original stop-and-frisk data. 
+# stopifnot(file.exists(base_code_dir), 
+#           file.exists(base_input_dir), 
+#           file.exists(base_output_dir), 
+#           file.exists(stop_and_frisk_data_path))
 
-stops_per_precinct_filename = paste0(base_input_dir, 'stops_per_precinct.csv')
 setwd(base_code_dir)
 white_population_perturbations = c(.2, .3, .4, .5, .6, .7, .8, .9, 1.1, 1.2, 1.5, 1.8, 2, 3, 4, 5, 10)
 

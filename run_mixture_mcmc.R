@@ -133,30 +133,67 @@ run_mixture_mcmc <- function(stops, output_filename, iter = 5000, warmup = NULL,
   }else{
     obs$thresholds = get_thresholds_from_post(post, obs)
   }
+  if(model_file == 'model_het.stan'){
+    obs$offsets = get_offsets_from_post(post, obs)
+  }
   print(get_single_threshold_from_state(obs))
   save(file=paste0(output_filename, '.RData'), obs, post, fit, seconds_required, Rhat)
 }
 
 run_threshold_test <- function(file_prefix, model_file){
+  output_dir = paste0(base_output_dir, "fft_", str_remove_all(Sys.time(), ':'), '/')
+  dir.create(output_dir)
+  
   #Checked. This actually runs the threshold test. 
   input_file = paste0(base_input_dir, file_prefix, '.RData')
   stopifnot(file.exists(input_file))
   stopifnot(file.exists(paste0('stan_models/', model_file)))
   message(sprintf("Loading %s", input_file))
   load(input_file)
+  if(model_file == 'model_het.stan'){
+    stops <- stops %>% arrange(driver_race)
+  }
   model_name = gsub('.stan', '', model_file)
-  out_name = paste0(base_output_dir, sprintf('%s_%s', file_prefix, model_name))
   
-  message(sprintf('Running threshold test on %s: %i locations, %i races, saving results to %s', 
-                  file_prefix, 
-                  length(unique(stops$location_variable)), 
-                  length(unique(stops$driver_race)), 
-                  out_name))
-  output = run_mixture_mcmc(stops, out_name, iter=5000, chains=5, adapt_delta=.9, max_treedepth=12, model_file=model_file)
+  if(officer_model){
+    shuffled_ids = sample(levels(stops$location_variable))
+    df = data.frame(shuffled_ids)
+    write.csv(df, paste0(output_dir, "batch_info.csv"))
+    shuffled_ids_true = shuffled_ids # within each batch the rows are in ascending numerical order by officer number
+    
+    batch_size = 100
+    I = seq(1, nrow(stops)/3, batch_size)
+    J = I + batch_size-1
+    J[length(J)] = nrow(stops)/3
+    
+    for(x in 1:length(I)){
+      load(input_file)
+      i = I[x]
+      j = J[x]
+      stops <- filter(stops, location_variable %in% shuffled_ids[i:j])
+      stops$location_variable = droplevels(stops$location_variable)
+      shuffled_ids_true[i:j] = levels(stops$location_variable)
+      
+      out_name = paste0(output_dir, sprintf('%s_%s_%d-%d', file_prefix, model_name, i, j))
+      message(sprintf('Running threshold test on %s: %i locations, %i races, saving results to %s',
+                      file_prefix,
+                      length(unique(stops$location_variable)),
+                      length(unique(stops$driver_race)),
+                      out_name))
+      message("Head of dataframe")
+      print(head(stops))
+      
+      output = run_mixture_mcmc(stops, out_name, iter=5000, chains=5, adapt_delta=.95, max_treedepth=12, model_file=model_file)
+    }
+    df = data.frame(shuffled_ids, shuffled_ids_true)
+    write.csv(df, paste0(output_dir, "batch_info.csv"))
+  }else{
+    out_name = paste0(output_dir, sprintf('%s_%s', file_prefix, model_name))
+    message(sprintf('Running threshold test on %s: %i locations, %i races, saving results to %s',
+                    file_prefix,
+                    length(unique(stops$location_variable)),
+                    length(unique(stops$driver_race)),
+                    out_name))
+    output = run_mixture_mcmc(stops, out_name, iter=5000, chains=5, adapt_delta=.95, max_treedepth=12, model_file=model_file)
+  }
 }
-
-
-
-
-
-

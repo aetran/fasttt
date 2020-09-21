@@ -1,16 +1,29 @@
-read_in_stop_and_frisk_data = function(){
+read_in_stop_and_frisk_data = function(lapd=FALSE, officer=FALSE){
   # Checked. 
-  load(stop_and_frisk_data_path)
-  stops = filter(stops, year >= 2008, year <= 2012)
-  stops$suspect.race = as.character(stops$suspect.race) 
-  stops$suspect.race = plyr::mapvalues(stops$suspect.race, 
-                                       c('black', 'black hispanic', 'white', 'white hispanic'), 
-                                       c('Black', 'Hispanic', 'White', 'Hispanic'))
-  
-  stops = filter(stops, suspect.race %in% c('Black', 'Hispanic', 'White')) %>%
-    rename(driver_race = suspect.race, 
-           location_variable = precinct)
-  stops$location_variable = as.numeric(as.character(stops$location_variable))
+  if (lapd==TRUE){
+    if (officer==TRUE){
+      stops <- read.csv(paste0(base_input_dir, "RIPA_MERGE_July_April.csv"))
+      stops <- stops %>% rename(driver_race = suspect.race,
+                                location_variable = officerid)
+    } else{
+      stops <- read.csv(paste0(base_input_dir, "RIPA_MERGE_July_April.csv"))
+      stops <- stops %>% rename(driver_race = suspect.race,
+                              location_variable = precinct)
+    }
+  } else{
+    stop_and_frisk_data_path = '~/share/data/algobias-data/sqf.RData'
+    load(stop_and_frisk_data_path)
+    stops = filter(stops, year >= 2008, year <= 2012)
+    stops$suspect.race = as.character(stops$suspect.race) 
+    stops$suspect.race = plyr::mapvalues(stops$suspect.race, 
+                                         c('black', 'black hispanic', 'white', 'white hispanic'), 
+                                         c('Black', 'Hispanic', 'White', 'Hispanic'))
+    
+    stops = filter(stops, suspect.race %in% c('Black', 'Hispanic', 'White')) %>%
+      rename(driver_race = suspect.race, 
+             location_variable = precinct)
+    stops$location_variable = as.numeric(as.character(stops$location_variable))
+  }
   return(stops)
 }
 
@@ -34,7 +47,9 @@ make_stop_and_frisk_dataframe = function(analysis_to_conduct,
                                          col_to_filter_on = NULL,
                                          filter_fxn = NULL, 
                                          filename = NULL, 
-                                         column_to_use_as_placebo = NULL){
+                                         column_to_use_as_placebo = NULL,
+                                         lapd=FALSE,
+                                         officer=FALSE){
   #Creates the dataframes to analyze. Checked. 
   # analysis_to_conduct: either stop_decision or search_decision. search_decision refers to frisk model. 
   # white_population_counterfactual_perturbation: 1 by default. Robustness check for stop model. 
@@ -53,7 +68,7 @@ make_stop_and_frisk_dataframe = function(analysis_to_conduct,
               (white_population_counterfactual_perturbation != 1) <= 1)
   
   # read in the data. 
-  stops = read_in_stop_and_frisk_data() %>% as.data.frame()
+  stops = read_in_stop_and_frisk_data(lapd=lapd,officer=officer) %>% as.data.frame()
   
   # if we want to run the substratification analysis, filter dataset first. 
   # we make no other modifications to the pipeline.
@@ -74,21 +89,58 @@ make_stop_and_frisk_dataframe = function(analysis_to_conduct,
     if(white_population_counterfactual_perturbation != 1){
       message(sprintf("Perturbing the white population by %2.3f", white_population_counterfactual_perturbation))
     }
-    census_pop_by_race_and_precinct = read_csv(paste0(base_code_dir, 'NYC_Blocks_2010CensusData_Plus_Precincts.csv')) %>%
-      group_by(precinct) %>% summarise(Hispanic = sum(P0020002), 
-                                       White = sum(P0020005), 
-                                       Black = sum(P0020006)) %>%
-      mutate(White = White * white_population_counterfactual_perturbation) %>%
-      gather(key = 'driver_race', value = 'race_base_pop', Hispanic:Black) %>%
-      rename(location_variable = precinct)
-    # compute summary stats for stops. 
-    stops = stops %>% 
-      mutate(stopped_because_suspected_weapon = (suspected.crime == 'cpw') & (!is.na(suspected.crime))) %>%
-      group_by(location_variable, driver_race) %>%
-      summarise(num_searches = sum(stopped_because_suspected_weapon), 
-                num_hits = sum(stopped_because_suspected_weapon & found.weapon)) %>% 
-      ungroup()
     
+    if(lapd==TRUE){
+       census_pop_by_race_and_precinct = read_csv('~/LA_2017CensusData_Plus_Precincts.csv') %>%
+           group_by(precinct) %>% summarise(Hispanic = sum(Hispanic, na.rm=TRUE),
+                                          White = sum(White, na.rm=TRUE),
+                                          Black = sum(Black, na.rm=TRUE)) %>%
+         gather(key = 'driver_race', value = 'race_base_pop', Hispanic:Black) %>%
+         rename(location_variable = precinct)
+
+       # compute summary stats for stops. 
+       stops = stops %>%
+         mutate(stopped_because_suspected_weapon = frisked.bc.weapons) %>%
+         group_by(location_variable, driver_race, .drop=FALSE) %>%
+         summarise(num_searches = sum(stopped_because_suspected_weapon),
+                   num_hits = sum(stopped_because_suspected_weapon & found.weapon)) %>%
+         ungroup()
+       
+       # translate census data for precincts into officers
+       if(officer==TRUE){
+         tmp1 = tmp
+         tmp1$driver_race = rep(census_pop_by_race_and_precinct$driver_race[1], nrow(tmp))
+         tmp1$race_base_pop = plyr::mapvalues(tmp$precinct,
+                                             census_pop_by_race_and_precinct$location_variable[1:21],
+                                             census_pop_by_race_and_precinct$race_base_pop[1:21])
+         tmp2 = tmp
+         tmp2$driver_race = rep(census_pop_by_race_and_precinct$driver_race[22], nrow(tmp))
+         tmp2$race_base_pop = plyr::mapvalues(tmp$precinct,
+                                             census_pop_by_race_and_precinct$location_variable[22:42],
+                                             census_pop_by_race_and_precinct$race_base_pop[22:42])
+         tmp3 = tmp
+         tmp3$driver_race = rep(census_pop_by_race_and_precinct$driver_race[43], nrow(tmp))
+         tmp3$race_base_pop = plyr::mapvalues(tmp$precinct,
+                                             census_pop_by_race_and_precinct$location_variable[43:63],
+                                             census_pop_by_race_and_precinct$race_base_pop[43:63])
+         census_pop_by_race_and_precinct = rbind(rbind(tmp1, tmp2), tmp3)
+       }
+    }else {
+      census_pop_by_race_and_precinct = read_csv(paste0(base_code_dir, 'NYC_Blocks_2010CensusData_Plus_Precincts.csv')) %>%
+        group_by(precinct) %>% summarise(Hispanic = sum(P0020002), 
+                                         White = sum(P0020005), 
+                                         Black = sum(P0020006)) %>%
+        mutate(White = White * white_population_counterfactual_perturbation) %>%
+        gather(key = 'driver_race', value = 'race_base_pop', Hispanic:Black) %>%
+        rename(location_variable = precinct)
+      # compute summary stats for stops. 
+      stops = stops %>% 
+        mutate(stopped_because_suspected_weapon = (suspected.crime == 'cpw') & (!is.na(suspected.crime))) %>%
+        group_by(location_variable, driver_race) %>%
+        summarise(num_searches = sum(stopped_because_suspected_weapon), 
+                  num_hits = sum(stopped_because_suspected_weapon & found.weapon)) %>% 
+        ungroup()
+    }
     # if we're not using a placebo column, add the race 
     if(is.null(column_to_use_as_placebo)){
       stops = stops %>% 
@@ -108,6 +160,8 @@ make_stop_and_frisk_dataframe = function(analysis_to_conduct,
       mutate(searches_per_capita = num_searches / race_base_pop, 
              hit_rate = num_hits / num_searches) %>%
       filter(total_pop_in_precinct >= 1000)
+    
+    stops = stops %>% mutate(location_variable = as.factor(location_variable))
   }else{
     stops = stops %>% 
       group_by(location_variable, driver_race) %>%
@@ -117,11 +171,11 @@ make_stop_and_frisk_dataframe = function(analysis_to_conduct,
       ungroup() %>%
       mutate(search_rate = num_searches / num_stops, 
              hit_rate = num_hits / num_searches)
-  }
-  
-  
-  stops = filter(stops, location_variable != 22) # filter out central park b/c no good population data.
-  stops = stops %>% mutate(location_variable = as.factor(location_variable))
+    }
+    if(lapd==FALSE){
+      stops = filter(stops, location_variable != 22) # filter out central park b/c no good population data.
+    }
+    stops = stops %>% mutate(location_variable = as.factor(location_variable))
   
   # change race column to a factor. If it is really race (not a placebo or something else) reorder levels. 
   if(is.null(column_to_use_as_placebo)){
@@ -131,15 +185,19 @@ make_stop_and_frisk_dataframe = function(analysis_to_conduct,
   }
   
   if(is.null(filename)){
+    if(lapd==TRUE){
+      city = 'la'
+    }else{
+      city = 'nyc'
+    }
     if(analysis_to_conduct == 'stop_decision'){
       if(white_population_counterfactual_perturbation == 1){
-        filename = 'nyc_stop_and_frisk.RData'
-      }
-      else{
-        filename = sprintf('nyc_stop_and_frisk_white_perturbation_%2.5f.RData', white_population_counterfactual_perturbation)
+        filename = paste0(city, '_stop_and_frisk.RData')
+      }else{
+        filename = sprintf('%s_stop_and_frisk_white_perturbation_%2.5f.RData', city, white_population_counterfactual_perturbation)
       }
     }else{
-      filename = 'nyc_stop_and_frisk_search_decision.RData'
+      filename = paste0(city, '_stop_and_frisk_search_decision.RData')
     }
   }
   filename = paste0(base_input_dir, filename)
@@ -150,21 +208,28 @@ make_stop_and_frisk_dataframe = function(analysis_to_conduct,
   return(stops)
 }
 
-create_stops_per_precinct_df = function(){
-  load(paste0(base_input_dir, 'nyc_stop_and_frisk_search_decision.RData'))
+create_stops_per_precinct_df = function(lapd=FALSE){
+  if(lapd==TRUE){
+    city = 'la'
+  }else{
+    city = 'nyc'
+  }
+  load(paste0(base_input_dir, city, '_stop_and_frisk_search_decision.RData'))
   stops = stops %>% 
     group_by(location_variable) %>%
     summarise(total_stops = sum(num_stops)) %>% 
     ungroup()
+  
+  stops_per_precinct_filename = paste0(base_input_dir, city, '_stops_per_precinct.csv')
   write_csv(stops, stops_per_precinct_filename)
 }
 
-make_all_stop_and_frisk_data = function(){
+make_all_stop_and_frisk_data = function(lapd=FALSE, officer=FALSE){
   message("Making all stop and frisk data.")
-  make_stop_and_frisk_dataframe('stop_decision')
-  for(perturbation in white_population_perturbations){
-    make_stop_and_frisk_dataframe('stop_decision', white_population_counterfactual_perturbation = perturbation)
-  }
-  make_stop_and_frisk_dataframe('search_decision')
-  create_stops_per_precinct_df()
+  # make_stop_and_frisk_dataframe('stop_decision', lapd=lapd, officer=officer)
+  # for(perturbation in white_population_perturbations){
+  #   make_stop_and_frisk_dataframe('stop_decision', white_population_counterfactual_perturbation = perturbation)
+  # }
+  make_stop_and_frisk_dataframe('search_decision', lapd=lapd, officer=officer)
+  create_stops_per_precinct_df(lapd=lapd)
 }
