@@ -1,4 +1,4 @@
-base_code_dir = "~/fasttt-lapdmod/"
+base_code_dir = "~/fasttt/"
 setwd(base_code_dir)
 source('constants_and_libraries.R')
 source('data_processing.R')
@@ -41,8 +41,6 @@ if(rerun_all_mixture_frisk_models){
     new_frisk_model_name = 'model_mixture.stan'
   }
   file_prefix = paste0(city, '_stop_and_frisk_search_decision')
-  run_threshold_test(file_prefix, new_frisk_model_name)
-  run_threshold_test(file_prefix, new_frisk_model_name)
   run_threshold_test(file_prefix, new_frisk_model_name)
 }
 

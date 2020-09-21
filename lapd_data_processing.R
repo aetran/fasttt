@@ -1,4 +1,4 @@
-base_code_dir = "~/fasttt-lapdmod/"
+base_code_dir = "~/fasttt/"
 setwd(base_code_dir)
 source('constants_and_libraries.R')
 

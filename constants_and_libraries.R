@@ -13,9 +13,9 @@ library(boot)
 
 # CHANGE THESE PATHS AS NECESSARY TO SUIT YOUR SYSTEM.
 # If the appropriate folders don't exist, the code will throw an error. 
-base_code_dir = '~/fasttt-lapdmod/' # the root directory for code. 
-base_input_dir = '~/fasttt-lapdmod/data/input/' # the path where input data for the Stan models is stored. 
-base_output_dir = '~/fasttt-lapdmod/data/output/' # the path where fitted Stan models are stored.
+base_code_dir = '~/fasttt/' # the root directory for code. 
+base_input_dir = '~/fasttt/data/input/' # the path where input data for the Stan models is stored. 
+base_output_dir = '~/fasttt/data/output/' # the path where fitted Stan models are stored.
 # stop_and_frisk_data_path = '~/share/data/algobias-data/sqf.RData' # the path for the original stop-and-frisk data. 
 # stopifnot(file.exists(base_code_dir), 
 #           file.exists(base_input_dir), 
