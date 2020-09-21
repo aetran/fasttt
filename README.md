@@ -44,4 +44,8 @@ A note on naming conventions in the Stan models: throughout the codebase, we ref
 
 **working_countrywide_mixture.stan**: this is the model we fit to the national traffic stop dataset. Data to fit this model is available at https://openpolicing.stanford.edu/data/; we do not analyze this model in detail in the paper, but include it as an illustration of how one might fit a multistate model. 
 
+## Edit for LAPD
+
+LAPD data from 2010 to present is available at https://data.lacity.org/A-Safe-City/Vehicle-and-Pedestrian-Stop-Data-2010-to-Present/ci25-wgt7/data.
+
 
